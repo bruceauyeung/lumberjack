@@ -106,6 +106,9 @@ type Logger struct {
 	// Compress determines if the rotated log files should be compressed
 	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
+    
+	// file permission for log file and backup log files
+	FilePerm os.FileMode
 
 	size int64
 	file *os.File
@@ -212,7 +215,10 @@ func (l *Logger) openNew() error {
 	}
 
 	name := l.filename()
-	mode := os.FileMode(0600)
+	perm := os.FileMode(0600)
+	if l.FilePerm != 0 {
+		perm = l.FilePerm
+	}
 	info, err := osStat(name)
 	if err == nil {
 		// Copy the mode off the old logfile.
@@ -232,7 +238,7 @@ func (l *Logger) openNew() error {
 	// we use truncate here because this should only get called when we've moved
 	// the file ourselves. if someone else creates the file in the meantime,
 	// just wipe out the contents.
-	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 	if err != nil {
 		return fmt.Errorf("can't open new logfile: %s", err)
 	}
@@ -277,7 +283,11 @@ func (l *Logger) openExistingOrNew(writeLen int) error {
 		return l.rotate()
 	}
 
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0644)
+	perm := os.FileMode(0644)
+	if l.FilePerm != 0 {
+		perm = l.FilePerm
+	}	
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, perm)
 	if err != nil {
 		// if we fail to open the old log file for some reason, just ignore
 		// it and open a new log file.
